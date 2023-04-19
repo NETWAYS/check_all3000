@@ -38,12 +38,12 @@ use subs qw/print_help check_value bool_state trim/;
 use vars qw (
     $PROGNAME
     $VERSION
-    
+
     %states
     %state_names
     $state_out
     $bool_state
-    
+
     $opt_help
     $opt_host
     $opt_port
@@ -58,11 +58,11 @@ use vars qw (
     $opt_bool
     $opt_man
     $opt_verbose
-    
+
     $sensor_value
     $sensor_min
     $sensor_max
-    
+
     $url
     $realm
     $ua
@@ -70,7 +70,7 @@ use vars qw (
     $res
     $xs
     $xml_ref
-    
+
     $out
     $perfdata
 );
@@ -130,49 +130,49 @@ unless ($opt_host && $opt_unit>=0 && length($opt_unit) > 0 && $opt_warning && $o
 else {
     # build the url from options strings
     $url = 'http://'. $opt_host. ':'. $opt_port. $opt_location;
-    
+
     # Creating a LWP Useragent object.
     $ua = LWP::UserAgent->new;
     $ua->agent($opt_useragent);
     $ua->timeout($opt_timeout);
-    
+
     # Creating a HTTP Request object
     $req = HTTP::Request->new(GET => $url);
-    
+
     # If a user and passwd comes with, validate it...
     if ($opt_user && $opt_passwd) {
         # sending a first bogus request to determine the auth realm from the server
         $res = $ua->request($req);
-        
+
         # extracting the realm or give up!
         if ($res->header('WWW-Authenticate') && $res->header('WWW-Authenticate') =~ m/realm=\"(.*?)\"/i) {
             $ua->credentials($opt_host. ':'. $opt_port,
                              $1,
                              $opt_user => $opt_passwd);
         }
-        
+
         else {
             print_help(0, "No HTTP Auth realm could be found. Please check if you need basic auth!");
         }
     }
-    
+
     # Checking bool states
     if (defined($opt_bool) && $opt_bool >= 0 && length($opt_bool) > 0 && !($opt_warning =~ m/^on|off|none$/i && $opt_critical =~ /^on|off|none$/i) ) {
         print_help (0, 'If you use the boolean operator only on, off and none are allowed as thresholds!');
     }
-    
+
     # If no bool option is present, check the input values match the threshold format description
     # see: http://nagiosplug.sourceforge.net/developer-guidelines.html#THRESHOLDFORMAT
     if (!defined($opt_bool) &&
         !($opt_warning =~ m/^\@*~*(\d*\.*\d+):*~*(\d*\.*\d+)*$/ &&
           $opt_critical =~ m/^\@*~*(\d*\.*\d+):*~*(\d*\.*\d+)*$/) ) {
-        
+
         print_help (0, 'If using nummeric thresholds, please use only numbers and the threshold values!');
     }
-    
+
     # Sending the 'real' http request to receive the xml stuff
     $res = $ua->request($req);
-    
+
     # Some other code than 200, give up!
     unless($res->is_success) {
         print_help(0, 'LWP Error: '. $res->status_line);
@@ -212,15 +212,15 @@ else {
         else {
             $state_out = $states{OK};
         }
-        
+
         if ($opt_verbose) {
             print "\n", Dumper ($xml_ref), "\n\n";
         }
-        
+
         # add the first part of the output ...
         $out = $state_names{$state_out}. ' (';
         $perfdata = '|';
-        
+
         # if is boolean probe requested, adding the bool state to output
         if (defined ($opt_bool) && $opt_bool >= 0 && length($opt_bool) > 0) {
             $bool_state = bool_state($sensor_value, $opt_bool);
@@ -232,21 +232,21 @@ else {
                 $perfdata .= 'state=0;';
             }
         }
-        
+
         # adding once more some values
         $out .= 'VALUE='. $sensor_value. ', ';
         $perfdata .= 'value='. $sensor_value. ';';
         $out .= 'PORT='. $opt_unit;
         $perfdata .= 'port='. $opt_unit. ';';
-        
+
         # closing the bracket in the output val and add some basic stuff to perfdata.
         $perfdata .= "$opt_warning;$opt_critical;$sensor_min;$sensor_max\n";
         $out .= ')';
-        
+
         # Sending to STDOUT and exit with the right state.
         print $out, $perfdata;
         exit ($state_out);
-        
+
     }
 }
 
@@ -263,14 +263,14 @@ exit ($states{UNKNOWN});
 sub bool_state {
     my ($value, $bool) = @_;
     my $state = 'NONE';
-    
+
     if ($value == $bool) {
         $state = 'OFF';
     }
     elsif ($value != $bool) {
         $state = 'ON';
     }
-    
+
     return ($state);
 }
 
@@ -280,11 +280,11 @@ sub check_value {
     my ($inside, $v_start, $v_end);
     my ($threshold, $value, $bool) = @_;
     my $re = 0;
-    
+
     if (defined ($bool) && $bool >=0 && length($bool) > 0) {
-        
+
         $value = lc ($value);
-        
+
         if ($bool == $value && $threshold eq 'off') {
             $re = 1;
         }
@@ -296,12 +296,12 @@ sub check_value {
         }
     }
     else {
-    
+
         if ($threshold =~ m/^\@/i) {
             $inside = 1;
             $threshold =~ s/^\@//i;
         }
-        
+
         if ($threshold =~ m/.*?:.*?/i) {
             ($v_start, $v_end) = split(/\:/, $threshold);
             unless ($v_end && length($v_end) >= 0) { $v_end = 'inf'; }
@@ -310,17 +310,17 @@ sub check_value {
             $v_start = 0;
             $v_end = $threshold;
         }
-        
+
         if ($v_start =~ m/^\~/) {
             $v_start =~ s/\~//;
             $v_start *= -1;
         }
-        
+
         if ($v_end ne 'inf' && $v_end =~ m/^\~/) {
             $v_end =~ s/\~//;
             $v_end *= -1;
         }
-        
+
         # check infinity end and inside start
         if ($inside && $v_end eq 'inf' && $value >= $v_start) {
             $re = 1;
@@ -337,7 +337,7 @@ sub check_value {
         elsif (!$inside && ($value < $v_start || $value > $v_end) ) {
             $re = 1;
         }
-    
+
     }
     return ($re);
 }
@@ -365,7 +365,7 @@ sub print_help {
                 -message => $msg,
                 -verbose => $level
                 });
-    
+
     exit ($states{UNKNOWN});
 }
 
