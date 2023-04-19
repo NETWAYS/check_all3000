@@ -56,16 +56,12 @@ use vars qw (
     $opt_warning
     $opt_critical
     $opt_bool
-    $opt_legend
     $opt_man
     $opt_verbose
     
     $sensor_value
     $sensor_min
     $sensor_max
-    $sensor_hi
-    $sensor_lo
-    $sensor_type
     
     $url
     $realm
@@ -100,7 +96,6 @@ $opt_location = '/xml';
 $opt_port = 80;
 $opt_timeout = 10;
 $opt_useragent = $PROGNAME. '/'. $VERSION. ' LWP/'. $LWP::VERSION;
-$opt_legend = $PROGNAME;
 
 # Get the options from cl
 Getopt::Long::Configure ('bundling');
@@ -116,7 +111,6 @@ GetOptions ('h'         =>  \$opt_help,
             'w=s'       =>  \$opt_warning,
             'c=s'       =>  \$opt_critical,
             'bool=i'    =>  \$opt_bool,
-            'legend=s'  =>  \$opt_legend,
             'man'       =>  \$opt_man,
             'verbose'   =>  \$opt_verbose)
     || print_help(1, 'Please check your options!');
@@ -130,7 +124,7 @@ elsif ($opt_man) {
 }
 
 # Check if all needed options present.
-unless ($opt_host && $opt_unit>=0 && length($opt_unit) > 0 && $opt_warning && $opt_critical && $opt_legend && $opt_timeout) {
+unless ($opt_host && $opt_unit>=0 && length($opt_unit) > 0 && $opt_warning && $opt_critical && $opt_timeout) {
     print_help (1, 'Too few option!');
 }
 else {
@@ -186,25 +180,26 @@ else {
     else {
         # creating a simple xml instance
         $xs = XML::Simple->new();
-        
+
         # a hash reference for the xmldata
         $xml_ref = $xs->XMLin($res->content);
-        $xml_ref = $xml_ref->{data};
-        
+
         # collect all sensor values from the wanted unit.
-        $sensor_value = trim($xml_ref->{'t'. $opt_unit});
-        $sensor_min = trim($xml_ref->{'min'. $opt_unit});
-        $sensor_max = trim($xml_ref->{'max'. $opt_unit});
-        
-        $sensor_hi = $xml_ref->{'h'. $opt_unit};
-        $sensor_lo = $xml_ref->{'l'. $opt_unit};
-        $sensor_type = $xml_ref->{'s'. $opt_unit};
-        
+        $sensor_value = trim($xml_ref->{current});
+        $sensor_min = trim($xml_ref->{min});
+        $sensor_max = trim($xml_ref->{max});
+
         # if the data is bad, give up!
-        unless (length($res->content) > 0 && $sensor_value && $sensor_type) {
+        unless (length($res->content) > 0 && $sensor_value) {
+            if ($opt_verbose) {
+                print "\n", Dumper ($sensor_value), "\n";
+                print "\n", Dumper ($res->content), "\n";
+            }
+
             print_help(0, "Some bogus xml data returned from '$opt_host'. Please check over the configuration!");
+
         }
-        
+
         # Check the values for CRITICAL (CRITICAL has first precedence!)
         if (check_value($opt_critical, $sensor_value, $opt_bool)) {
             $state_out = $states{CRITICAL};
@@ -223,7 +218,7 @@ else {
         }
         
         # add the first part of the output ...
-        $out = $opt_legend. ': '. $state_names{$state_out}. ' (';
+        $out = $state_names{$state_out}. ' (';
         $perfdata = '|';
         
         # if is boolean probe requested, adding the bool state to output
@@ -245,7 +240,7 @@ else {
         $perfdata .= 'port='. $opt_unit. ';';
         
         # closing the bracket in the output val and add some basic stuff to perfdata.
-        $perfdata .= "$opt_warning;$opt_critical;$sensor_min;$sensor_max";
+        $perfdata .= "$opt_warning;$opt_critical;$sensor_min;$sensor_max\n";
         $out .= ')';
         
         # Sending to STDOUT and exit with the right state.
@@ -351,11 +346,14 @@ sub check_value {
 # return the left and right trimmed value
 sub trim {
     my ($string) = @_;
-    for ($string) {
-        s/^\s+//;
-        s/\s+$//;
+    if (defined $string && $string ne '') {
+        for ($string) {
+            s/^\s+//;
+            s/\s+$//;
+        }
+        return ($string);
     }
-    return ($string);
+    return ""
 }
 
 # print_help($level, $msg);
