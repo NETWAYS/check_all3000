@@ -113,7 +113,7 @@ GetOptions ('h'         =>  \$opt_help,
             'bool=i'    =>  \$opt_bool,
             'man'       =>  \$opt_man,
             'verbose'   =>  \$opt_verbose)
-    || print_help(1, 'Please check your options!');
+    || print_help(0, 'Mandatory options missing.');
 
 # If somebody wants to the help ...
 if ($opt_help) {
@@ -125,7 +125,7 @@ elsif ($opt_man) {
 
 # Check if all needed options present.
 unless ($opt_host && $opt_unit>=0 && length($opt_unit) > 0 && $opt_warning && $opt_critical && $opt_timeout) {
-    print_help (1, 'Too few option!');
+    print_help (0, 'Mandatory options missing.');
 }
 else {
     # build the url from options strings
@@ -152,13 +152,13 @@ else {
         }
 
         else {
-            print_help(0, "No HTTP Auth realm could be found. Please check if you need basic auth!");
+            print_help(0, "No HTTP Auth realm could be found. Please check if you need basic auth.");
         }
     }
 
     # Checking bool states
     if (defined($opt_bool) && $opt_bool >= 0 && length($opt_bool) > 0 && !($opt_warning =~ m/^on|off|none$/i && $opt_critical =~ /^on|off|none$/i) ) {
-        print_help (0, 'If you use the boolean operator only on, off and none are allowed as thresholds!');
+        print_help (3, 'If you use the boolean operator only on, off and none are allowed as thresholds.');
     }
 
     # If no bool option is present, check the input values match the threshold format description
@@ -167,7 +167,7 @@ else {
         !($opt_warning =~ m/^\@*~*(\d*\.*\d+):*~*(\d*\.*\d+)*$/ &&
           $opt_critical =~ m/^\@*~*(\d*\.*\d+):*~*(\d*\.*\d+)*$/) ) {
 
-        print_help (0, 'If using nummeric thresholds, please use only numbers and the threshold values!');
+        print_help (0, 'If using nummeric thresholds, please use only numbers and the threshold values.');
     }
 
     # Sending the 'real' http request to receive the xml stuff
@@ -175,7 +175,7 @@ else {
 
     # Some other code than 200, give up!
     unless($res->is_success) {
-        print_help(0, 'LWP Error: '. $res->status_line);
+        print_help(0, 'Error while retrieving XML data: '. $res->status_line);
     }
     else {
         # creating a simple xml instance
@@ -196,7 +196,7 @@ else {
                 print "\n", Dumper ($res->content), "\n";
             }
 
-            print_help(0, "Some bogus xml data returned from '$opt_host'. Please check over the configuration!");
+            print_help(0, "Invalid data returned from '$opt_host'. Please check the configuration. \n If XML seems valild, you can report this error together with the XML data.");
 
         }
 
@@ -214,7 +214,7 @@ else {
         }
 
         if ($opt_verbose) {
-            print "\n", Dumper ($xml_ref), "\n\n";
+            print "\n", Dumper ($xml_ref), "\n";
         }
 
         # add the first part of the output ...
