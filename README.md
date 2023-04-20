@@ -96,6 +96,4 @@ NETWAYS GmbH, 2005, http://www.netways.de.
 
 Written by Marius Hein <mhein@netways.de>.
 
-Please report bugs at https://www.netways.org/projects/plugins
-http://exchange.icinga.org.
-
+Please report bugs at https://github.com/NETWAYS/check_all3000/
