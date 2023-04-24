@@ -38,12 +38,12 @@ use subs qw/print_help check_value bool_state trim/;
 use vars qw (
     $PROGNAME
     $VERSION
-    
+
     %states
     %state_names
     $state_out
     $bool_state
-    
+
     $opt_help
     $opt_host
     $opt_port
@@ -56,17 +56,13 @@ use vars qw (
     $opt_warning
     $opt_critical
     $opt_bool
-    $opt_legend
     $opt_man
     $opt_verbose
-    
+
     $sensor_value
     $sensor_min
     $sensor_max
-    $sensor_hi
-    $sensor_lo
-    $sensor_type
-    
+
     $url
     $realm
     $ua
@@ -74,7 +70,7 @@ use vars qw (
     $res
     $xs
     $xml_ref
-    
+
     $out
     $perfdata
 );
@@ -100,7 +96,6 @@ $opt_location = '/xml';
 $opt_port = 80;
 $opt_timeout = 10;
 $opt_useragent = $PROGNAME. '/'. $VERSION. ' LWP/'. $LWP::VERSION;
-$opt_legend = $PROGNAME;
 
 # Get the options from cl
 Getopt::Long::Configure ('bundling');
@@ -116,10 +111,9 @@ GetOptions ('h'         =>  \$opt_help,
             'w=s'       =>  \$opt_warning,
             'c=s'       =>  \$opt_critical,
             'bool=i'    =>  \$opt_bool,
-            'legend=s'  =>  \$opt_legend,
             'man'       =>  \$opt_man,
             'verbose'   =>  \$opt_verbose)
-    || print_help(1, 'Please check your options!');
+    || print_help(0, 'Mandatory options missing.');
 
 # If somebody wants to the help ...
 if ($opt_help) {
@@ -130,81 +124,82 @@ elsif ($opt_man) {
 }
 
 # Check if all needed options present.
-unless ($opt_host && $opt_unit>=0 && length($opt_unit) > 0 && $opt_warning && $opt_critical && $opt_legend && $opt_timeout) {
-    print_help (1, 'Too few option!');
+unless ($opt_host && $opt_unit>=0 && length($opt_unit) > 0 && $opt_warning && $opt_critical && $opt_timeout) {
+    print_help (0, 'Mandatory options missing.');
 }
 else {
     # build the url from options strings
     $url = 'http://'. $opt_host. ':'. $opt_port. $opt_location;
-    
+
     # Creating a LWP Useragent object.
     $ua = LWP::UserAgent->new;
     $ua->agent($opt_useragent);
     $ua->timeout($opt_timeout);
-    
+
     # Creating a HTTP Request object
     $req = HTTP::Request->new(GET => $url);
-    
+
     # If a user and passwd comes with, validate it...
     if ($opt_user && $opt_passwd) {
         # sending a first bogus request to determine the auth realm from the server
         $res = $ua->request($req);
-        
+
         # extracting the realm or give up!
         if ($res->header('WWW-Authenticate') && $res->header('WWW-Authenticate') =~ m/realm=\"(.*?)\"/i) {
             $ua->credentials($opt_host. ':'. $opt_port,
                              $1,
                              $opt_user => $opt_passwd);
         }
-        
+
         else {
-            print_help(0, "No HTTP Auth realm could be found. Please check if you need basic auth!");
+            print_help(0, "No HTTP Auth realm could be found. Please check if you need basic auth.");
         }
     }
-    
+
     # Checking bool states
     if (defined($opt_bool) && $opt_bool >= 0 && length($opt_bool) > 0 && !($opt_warning =~ m/^on|off|none$/i && $opt_critical =~ /^on|off|none$/i) ) {
-        print_help (0, 'If you use the boolean operator only on, off and none are allowed as thresholds!');
+        print_help (3, 'If you use the boolean operator only on, off and none are allowed as thresholds.');
     }
-    
+
     # If no bool option is present, check the input values match the threshold format description
     # see: http://nagiosplug.sourceforge.net/developer-guidelines.html#THRESHOLDFORMAT
     if (!defined($opt_bool) &&
         !($opt_warning =~ m/^\@*~*(\d*\.*\d+):*~*(\d*\.*\d+)*$/ &&
           $opt_critical =~ m/^\@*~*(\d*\.*\d+):*~*(\d*\.*\d+)*$/) ) {
-        
-        print_help (0, 'If using nummeric thresholds, please use only numbers and the threshold values!');
+
+        print_help (0, 'If using nummeric thresholds, please use only numbers and the threshold values.');
     }
-    
+
     # Sending the 'real' http request to receive the xml stuff
     $res = $ua->request($req);
-    
+
     # Some other code than 200, give up!
     unless($res->is_success) {
-        print_help(0, 'LWP Error: '. $res->status_line);
+        print_help(0, 'Error while retrieving XML data: '. $res->status_line);
     }
     else {
         # creating a simple xml instance
         $xs = XML::Simple->new();
-        
+
         # a hash reference for the xmldata
         $xml_ref = $xs->XMLin($res->content);
-        $xml_ref = $xml_ref->{data};
-        
+
         # collect all sensor values from the wanted unit.
-        $sensor_value = trim($xml_ref->{'t'. $opt_unit});
-        $sensor_min = trim($xml_ref->{'min'. $opt_unit});
-        $sensor_max = trim($xml_ref->{'max'. $opt_unit});
-        
-        $sensor_hi = $xml_ref->{'h'. $opt_unit};
-        $sensor_lo = $xml_ref->{'l'. $opt_unit};
-        $sensor_type = $xml_ref->{'s'. $opt_unit};
-        
+        $sensor_value = trim($xml_ref->{current});
+        $sensor_min = trim($xml_ref->{min});
+        $sensor_max = trim($xml_ref->{max});
+
         # if the data is bad, give up!
-        unless (length($res->content) > 0 && $sensor_value && $sensor_type) {
-            print_help(0, "Some bogus xml data returned from '$opt_host'. Please check over the configuration!");
+        unless (length($res->content) > 0 && $sensor_value) {
+            if ($opt_verbose) {
+                print "\n", Dumper ($sensor_value), "\n";
+                print "\n", Dumper ($res->content), "\n";
+            }
+
+            print_help(0, "Invalid data returned from '$opt_host'. Please check the configuration. \n If XML seems valild, you can report this error together with the XML data.");
+
         }
-        
+
         # Check the values for CRITICAL (CRITICAL has first precedence!)
         if (check_value($opt_critical, $sensor_value, $opt_bool)) {
             $state_out = $states{CRITICAL};
@@ -217,15 +212,15 @@ else {
         else {
             $state_out = $states{OK};
         }
-        
+
         if ($opt_verbose) {
-            print "\n", Dumper ($xml_ref), "\n\n";
+            print "\n", Dumper ($xml_ref), "\n";
         }
-        
+
         # add the first part of the output ...
-        $out = $opt_legend. ': '. $state_names{$state_out}. ' (';
+        $out = $state_names{$state_out}. ' (';
         $perfdata = '|';
-        
+
         # if is boolean probe requested, adding the bool state to output
         if (defined ($opt_bool) && $opt_bool >= 0 && length($opt_bool) > 0) {
             $bool_state = bool_state($sensor_value, $opt_bool);
@@ -237,21 +232,21 @@ else {
                 $perfdata .= 'state=0;';
             }
         }
-        
+
         # adding once more some values
         $out .= 'VALUE='. $sensor_value. ', ';
         $perfdata .= 'value='. $sensor_value. ';';
         $out .= 'PORT='. $opt_unit;
         $perfdata .= 'port='. $opt_unit. ';';
-        
+
         # closing the bracket in the output val and add some basic stuff to perfdata.
-        $perfdata .= "$opt_warning;$opt_critical;$sensor_min;$sensor_max";
+        $perfdata .= "$opt_warning;$opt_critical;$sensor_min;$sensor_max\n";
         $out .= ')';
-        
+
         # Sending to STDOUT and exit with the right state.
         print $out, $perfdata;
         exit ($state_out);
-        
+
     }
 }
 
@@ -268,14 +263,14 @@ exit ($states{UNKNOWN});
 sub bool_state {
     my ($value, $bool) = @_;
     my $state = 'NONE';
-    
+
     if ($value == $bool) {
         $state = 'OFF';
     }
     elsif ($value != $bool) {
         $state = 'ON';
     }
-    
+
     return ($state);
 }
 
@@ -285,11 +280,11 @@ sub check_value {
     my ($inside, $v_start, $v_end);
     my ($threshold, $value, $bool) = @_;
     my $re = 0;
-    
+
     if (defined ($bool) && $bool >=0 && length($bool) > 0) {
-        
+
         $value = lc ($value);
-        
+
         if ($bool == $value && $threshold eq 'off') {
             $re = 1;
         }
@@ -301,12 +296,12 @@ sub check_value {
         }
     }
     else {
-    
+
         if ($threshold =~ m/^\@/i) {
             $inside = 1;
             $threshold =~ s/^\@//i;
         }
-        
+
         if ($threshold =~ m/.*?:.*?/i) {
             ($v_start, $v_end) = split(/\:/, $threshold);
             unless ($v_end && length($v_end) >= 0) { $v_end = 'inf'; }
@@ -315,17 +310,17 @@ sub check_value {
             $v_start = 0;
             $v_end = $threshold;
         }
-        
+
         if ($v_start =~ m/^\~/) {
             $v_start =~ s/\~//;
             $v_start *= -1;
         }
-        
+
         if ($v_end ne 'inf' && $v_end =~ m/^\~/) {
             $v_end =~ s/\~//;
             $v_end *= -1;
         }
-        
+
         # check infinity end and inside start
         if ($inside && $v_end eq 'inf' && $value >= $v_start) {
             $re = 1;
@@ -342,7 +337,7 @@ sub check_value {
         elsif (!$inside && ($value < $v_start || $value > $v_end) ) {
             $re = 1;
         }
-    
+
     }
     return ($re);
 }
@@ -351,11 +346,14 @@ sub check_value {
 # return the left and right trimmed value
 sub trim {
     my ($string) = @_;
-    for ($string) {
-        s/^\s+//;
-        s/\s+$//;
+    if (defined $string && $string ne '') {
+        for ($string) {
+            s/^\s+//;
+            s/\s+$//;
+        }
+        return ($string);
     }
-    return ($string);
+    return ""
 }
 
 # print_help($level, $msg);
@@ -367,7 +365,7 @@ sub print_help {
                 -message => $msg,
                 -verbose => $level
                 });
-    
+
     exit ($states{UNKNOWN});
 }
 
@@ -500,4 +498,4 @@ NETWAYS GmbH, 2005, http://www.netways.de.
 
 Written by Marius Hein <mhein@netways.de>.
 
-Please report bugs at https://www.netways.org/projects/plugins
+Please report bugs at https://github.com/NETWAYS/check_all3000/

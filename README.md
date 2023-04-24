@@ -4,6 +4,11 @@ check_all3000
 Checks the allnet environmental devices for Icinga.
 The plugin recieves the XML data from the allnet devices. It can check thresholds and boolean states of the connected probes.
 
+### Requirements
+
+* LWP::UserAgent
+* XML::Simple
+
 ### Usage
     check_allnet.pl -h
 
@@ -91,6 +96,4 @@ NETWAYS GmbH, 2005, http://www.netways.de.
 
 Written by Marius Hein <mhein@netways.de>.
 
-Please report bugs at https://www.netways.org/projects/plugins
-http://exchange.icinga.org.
-
+Please report bugs at https://github.com/NETWAYS/check_all3000/

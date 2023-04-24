@@ -1,0 +1,32 @@
+<sensor>
+  <id>1</id>
+  <name>Intern</name>
+  <current>28.56</current>
+  <unit>°C</unit>
+  <minmax>
+    <today>
+      <min>
+        <value>28.18</value>
+        <date>20.05.2020 00:00:07</date>
+        <timestamp>1589925607</timestamp>
+      </min>
+      <max>
+        <value>30.09</value>
+        <date>20.05.2020 12:55:51</date>
+        <timestamp>1589972151</timestamp>
+      </max>
+    </today>
+    <absolute>
+      <min>
+        <value>18.75</value>
+        <date>13.06.2017 14:14:14</date>
+        <timestamp>1497356054</timestamp>
+      </min>
+      <max>
+        <value>40.36</value>
+        <date>16.03.2017 09:09:40</date>
+        <timestamp>1489651780</timestamp>
+      </max>
+    </absolute>
+  </minmax>
+</sensor>
